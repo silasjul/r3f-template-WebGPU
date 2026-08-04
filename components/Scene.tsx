@@ -3,7 +3,7 @@
 import { Canvas } from '@react-three/fiber';
 import { createWebGPURenderer } from '@/lib/webgpu';
 import InspectorControls from '@/components/InspectorControls';
-import Lights from '@/components/Lights';
+import Light from '@/components/Light';
 import Cube from '@/components/Cube';
 import Controls from '@/components/Controls';
 
@@ -14,7 +14,7 @@ export default function Scene() {
       gl={(props) => createWebGPURenderer(props)}
     >
       <InspectorControls />
-      <Lights />
+      <Light />
       <Cube />
       <Controls />
     </Canvas>

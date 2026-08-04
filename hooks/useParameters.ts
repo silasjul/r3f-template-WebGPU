@@ -3,8 +3,6 @@ import { useThree } from '@react-three/fiber';
 import { addButton, addFolder, getInspector } from '@/lib/inspector';
 import type { ParametersGroup } from 'three/addons/inspector/tabs/Parameters.js';
 
-export type { ParametersGroup };
-
 /**
  * Builds one folder in the Inspector's Parameters tab, and removes it again when the
  * component unmounts — folders live and die with whatever owns them.

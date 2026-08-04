@@ -23,7 +23,7 @@ Write as few comments as possible. Only add one when the code genuinely can't be
 One component per file, named after the file. `Cube` is the worked example: declare the folder, read the values, render.
 
 ```
-components/     Scene · InspectorControls · Lights · Cube · Controls
+components/     Scene · InspectorControls · Light · Cube · Controls
 configs/        one plain object per domain
 hooks/          useParameters.ts
   tweaks/       one hook per folder
@@ -35,13 +35,13 @@ Geometry and shader authoring belongs in `lib/`, not in a component.
 
 # Inspector tweaks
 
-Tweaks live in the **Parameters** tab of three.js's built-in WebGPU Inspector (attached in `lib/webgpu.ts`, dev-only) — no Leva. Press **`h`** to collapse and reopen that panel, the same as clicking its toolbar icon. It starts open; `useParametersToggle({ open: false })` in `InspectorControls` starts it collapsed.
+Tweaks live in the **Parameters** tab of three.js's built-in WebGPU Inspector (attached in `lib/webgpu.ts`, dev-only) — no Leva. Press **`h`** to collapse and reopen that panel, the same as clicking its toolbar icon. It starts collapsed; `useParametersToggle({ open: true })` in `InspectorControls` starts it open.
 
 Flow: **`config → hook → store → consumer`**
 
 - **`configs/<name>Config.ts`** — a `<Name>Config` type and the object, e.g. `CUBE`. Defaults on disk, live values at runtime.
-- **`hooks/tweaks/use<Name>Tweaks.ts`** — declares the folder. Every row edits the config, then calls `syncConfig('<name>')`.
-- **`stores/tweakStore.ts`** — generated from `CONFIGS`; slices and their types follow from the config objects, so there is nothing to keep in sync by hand.
+- **`hooks/tweaks/use<Name>Tweaks.ts`** — declares the folder. Every row edits the config, then calls that folder's `sync`.
+- **`stores/tweakStore.ts`** — one slice + one `sync<Name>` per config. Two lines each, no generics.
 - **consumers** — `useTweakStore((s) => s.cube)`, from any component.
 - **`components/InspectorControls.tsx`** — calls every tweak hook, plus the hide key and save button. The one place folders are registered; consumers never come here.
 
@@ -81,7 +81,7 @@ For a value read every frame, you can skip the subscription with `useTweakStore.
 
 ## Saving
 
-Tune, hit `log configs`, right-click the logged object → *Copy object*, paste back into `configs/`. It dumps `CONFIGS`, and clones because devtools reads a logged object lazily.
+Tune, hit `log configs`, right-click the logged object → *Copy object*, paste back into `configs/`. It dumps the store — every slice, minus the `sync` functions. Each sync replaces its slice with a fresh object, so a logged snapshot never changes under you.
 
 In production `build` never runs, nothing writes to a config, and the store keeps its initial copy.
 
@@ -127,7 +127,7 @@ It has no ordering or removal API — `List` only appends and `Parameters` never
 ## Add a folder (e.g. "sphere")
 
 1. `configs/sphereConfig.ts` — `SphereConfig` and `export const SPHERE: SphereConfig = { ... }`.
-2. `stores/tweakStore.ts` — add `sphere: SPHERE` to `CONFIGS`. That is the whole store change.
-3. `hooks/tweaks/useSphereTweaks.ts` — one row per knob, all `.onChange(sync)` where `sync = () => syncConfig('sphere')`.
+2. `stores/tweakStore.ts` — add `sphere: { ...SPHERE }` and `syncSphere`, two lines.
+3. `hooks/tweaks/useSphereTweaks.ts` — `const sync = useTweakStore((s) => s.syncSphere)`, then one row per knob, all `.onChange(sync)`.
 4. `components/InspectorControls.tsx` — call it.
 5. Read it anywhere with `useTweakStore((s) => s.sphere)`.

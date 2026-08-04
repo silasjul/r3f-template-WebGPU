@@ -1,17 +1,23 @@
 export type LightConfig = {
-  sunColor: string;
+  /** Directional light — parallel rays from one direction. The only one that can cast shadows. */
+  color: string;
   intensity: number;
+  /** Its Y position; X and Z are fixed in `Light`. */
   height: number;
-  skyColor: string;
-  groundColor: string;
-  ambient: number;
+  /**
+   * Hemisphere light — fill that blends by surface normal: `upColor` on faces pointing
+   * up, `downColor` on faces pointing down, so nothing ends up pure black.
+   */
+  upColor: string;
+  downColor: string;
+  fill: number;
 };
 
 export const LIGHT: LightConfig = {
-  sunColor: '#ffd9a0',
+  color: '#ffd9a0',
   intensity: 2.4,
   height: 24,
-  skyColor: '#cdd8ff',
-  groundColor: '#6b5a3a',
-  ambient: 0.6,
+  upColor: '#cdd8ff',
+  downColor: '#6b5a3a',
+  fill: 0.6,
 };

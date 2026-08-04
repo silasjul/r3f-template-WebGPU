@@ -14,7 +14,10 @@ type List = {
 type Group = { paramList: Row & { children: Row[] } };
 type Editor = { name: (label: string) => Editor };
 
-/** Folders sort above buttons, whatever order a scene swap rebuilds them in. */
+/** `builtinButton` is the tab's icon in the toolbar; its click handler is the real toggle. */
+type ParametersTab = { groups: unknown[]; builtinButton?: HTMLButtonElement };
+
+/** Folders sort above buttons, so the save button stays last however folders are rebuilt. */
 const FOLDER = 0;
 const BUTTON = 100;
 
@@ -24,9 +27,6 @@ export function getInspector(renderer: object): Inspector | null {
 
   return typeof candidate?.createParameters === 'function' ? candidate : null;
 }
-
-/** `builtinButton` is the tab's icon in the toolbar; its click handler is the real toggle. */
-type ParametersTab = { builtinButton?: HTMLButtonElement };
 
 /** The Parameters tab itself — `Inspector.parameters` is absent from @types/three. */
 export function getParametersTab(inspector: Inspector): ParametersTab {
@@ -47,9 +47,9 @@ function sortRoot(list: List, row: Row, order: number) {
   for (const child of sorted) list.domElement.appendChild(child.domElement);
 }
 
-/** `createGroup` pushes into a registry it never cleans, which leaks across swaps. */
+/** `createGroup` pushes into a registry it never cleans, so every removed folder leaks. */
 function dropGroup(inspector: Inspector, group: ParametersGroup) {
-  const { groups } = (inspector as unknown as { parameters: { groups: unknown[] } }).parameters;
+  const { groups } = getParametersTab(inspector);
   const index = groups.indexOf(group);
 
   if (index !== -1) groups.splice(index, 1);
