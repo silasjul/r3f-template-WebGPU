@@ -25,6 +25,14 @@ export function getInspector(renderer: object): Inspector | null {
   return typeof candidate?.createParameters === 'function' ? candidate : null;
 }
 
+/** `builtinButton` is the tab's icon in the toolbar; its click handler is the real toggle. */
+type ParametersTab = { builtinButton?: HTMLButtonElement };
+
+/** The Parameters tab itself — `Inspector.parameters` is absent from @types/three. */
+export function getParametersTab(inspector: Inspector): ParametersTab {
+  return (inspector as unknown as { parameters: ParametersTab }).parameters;
+}
+
 /** The tab only ever appends, so every root row is re-sorted by the order stamped on it. */
 function sortRoot(list: List, row: Row, order: number) {
   row.userData.order = order;
@@ -98,18 +106,18 @@ function hex(value: unknown): string {
 }
 
 /**
- * A colour row that normalises back into the config, so a dump pastes straight back.
- * `apply` then does whatever that colour drives — usually a `Color.set`, occasionally
- * a store setter.
+ * The one row that isn't plain `group.add`. A colour editor reports a packed int
+ * whatever you passed in, so this writes `'#rrggbb'` back into the config before
+ * syncing — which is what keeps a `log configs` dump pasteable.
  */
 export function colorRow<T extends object>(
   group: ParametersGroup,
   config: T,
   key: keyof T & string,
-  apply: () => void
+  sync: () => void
 ) {
   return group.addColor(config, key).onChange((value) => {
     (config as Record<string, unknown>)[key] = hex(value);
-    apply();
+    sync();
   });
 }

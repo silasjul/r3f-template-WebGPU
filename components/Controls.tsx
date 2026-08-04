@@ -10,7 +10,6 @@ export default function Controls() {
       makeDefault
       domElement={canvas}
       target={[0, 0, 0]}
-      maxPolarAngle={Math.PI / 2.05}
     />
   );
 }

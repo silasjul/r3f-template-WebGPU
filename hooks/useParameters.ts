@@ -9,18 +9,14 @@ export type { ParametersGroup };
  * Builds one folder in the Inspector's Parameters tab, and removes it again when the
  * component unmounts — folders live and die with whatever owns them.
  *
- * Rows bind to a live object and write straight back into it, so `group.add(FOG,
- * 'density', 0, 0.06, 0.0005)` already sets `FOG.density`; chain `.onChange(sync)` to
- * push that into the store. In production the Inspector is never attached, so this no-ops.
+ * A row binds to a live object and writes straight back into it, so
+ * `group.add(CUBE, 'size', 1, 40, 0.5)` already sets `CUBE.size`; chain
+ * `.onChange(sync)` to push that into the store.
  *
- * `build` runs once, since the Inspector owns the values from then on. Pass `key` to
- * rebuild the folder when it has to bind to a different object.
+ * `build` runs once, since the Inspector owns the values from then on. In production
+ * the Inspector is never attached, so this no-ops.
  */
-export function useParameters(
-  name: string,
-  build: (group: ParametersGroup) => void,
-  key?: unknown
-) {
+export function useParameters(name: string, build: (group: ParametersGroup) => void) {
   const renderer = useThree((s) => s.gl);
 
   useEffect(() => {
@@ -28,9 +24,9 @@ export function useParameters(
     if (!inspector) return;
 
     return addFolder(inspector, name, build);
-    // `build` is deliberately not a dependency — `key` is the opt-in rebuild signal.
+    // `build` runs once by design, so it is deliberately not a dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [renderer, name, key]);
+  }, [renderer, name]);
 }
 
 /** A bare button pinned below the folders. Pass a `useCallback`'d handler. */

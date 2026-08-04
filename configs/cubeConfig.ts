@@ -7,7 +7,7 @@ export type CubeConfig = {
 
 export const CUBE: CubeConfig = {
   color: '#c98f5a',
-  size: 12,
+  size: 10,
   spin: 0.3,
   wireframe: false,
 };
