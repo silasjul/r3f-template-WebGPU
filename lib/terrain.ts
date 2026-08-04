@@ -1,6 +1,17 @@
-import { BufferAttribute, PlaneGeometry } from 'three/webgpu';
+import { BufferAttribute, Color, PlaneGeometry } from 'three/webgpu';
+import { mix, normalWorld, smoothstep, uniform } from 'three/tsl';
 import { createNoise2D, fbm2D } from '@/lib/noise';
-import type { TerrainShape } from '@/configs/terrainConfig';
+
+/** The fields that define the height field — anything sampling the ground needs only these. */
+export type TerrainShape = {
+  seed: number;
+  scale: number;
+  height: number;
+  octaves: number;
+  lacunarity: number;
+  persistence: number;
+  warp: number;
+};
 
 export type HeightSampler = (x: number, z: number) => number;
 
@@ -22,6 +33,19 @@ export function createHeightSampler(shape: TerrainShape): HeightSampler {
 
     return fbm2D(base, sx, sz, shape.octaves, shape.lacunarity, shape.persistence) * shape.height;
   };
+}
+
+/**
+ * Blends a flat colour into a slope colour by how level the ground is. Build it once —
+ * it is a shader, and replacing it recompiles. `flat` and `slope` are the live Colors
+ * the uniforms hold, so mutating them repaints on the next frame instead.
+ */
+export function createTerrainShading() {
+  const flat = new Color();
+  const slope = new Color();
+  const flatness = smoothstep(0.6, 0.92, normalWorld.y);
+
+  return { colorNode: mix(uniform(slope), uniform(flat), flatness), flat, slope };
 }
 
 export function buildTerrainGeometry(size: number, segments: number, sample: HeightSampler) {

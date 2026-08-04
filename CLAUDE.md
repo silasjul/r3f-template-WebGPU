@@ -20,65 +20,134 @@ Write as few comments as possible. Only add one when the code genuinely can't be
 
 # Inspector tweaks
 
-Tweaks live in the **Parameters** tab of three.js's built-in WebGPU Inspector (attached in `lib/webgpu.ts`, dev-only) — Leva is gone. The panel is DOM owned by the renderer, not React, so it never resets on re-render.
+Tweaks live in the **Parameters** tab of three.js's built-in WebGPU Inspector (attached in `lib/webgpu.ts`, dev-only) — no Leva. Press **`h`** to hide the panel.
 
-- **`lib/inspector/parameters.ts`** — all the addon plumbing, no React. Builds folders and rows, orders them, works around the typing and lifecycle gaps in `@types/three`.
-- **`hooks/inspector/useTweaks.ts`** — thin hooks over that: `useTweaks`, `useTweakSelect`, `useTweakButton`.
-- **Config** — `configs/<name>Config.ts`. Exports a `<Name>Config` type and a `<NAME>_DEFAULTS` object.
-- **Folder hook** — `hooks/inspector/use<Name>Tweaks.ts`. Module-level `SCHEMA`, then `useTweaks('<Label>', <NAME>_DEFAULTS, SCHEMA, onChange)`.
-- **Tweaks** — `components/Tweaks.tsx`. Calls the hooks that outlive a scene swap (scene picker, global folders, buttons) and renders `null`.
+Flow: **`config → hook → store → consumer`**
 
-`<Tweaks />` must be **inside** the Canvas — `useTweaks` reaches the Inspector through `useThree((s) => s.gl).inspector`.
+- **`configs/<name>Config.ts`** — a `<Name>Config` type and the object, e.g. `CUBE`. Defaults on disk, live values at runtime.
+- **`use<Name>Tweaks.ts`** — declares the folder. Every row edits the config, then calls `syncConfig('<name>')`.
+- **`stores/tweakStore.ts`** — generated from `CONFIGS`; slices and their types follow from the config objects, so there is nothing to keep in sync by hand.
+- **consumers** — read from the store, anywhere in the scene.
+- **`components/Tweaks.tsx`** — calls the hooks for folders that outlive a scene swap.
 
-Top-level rows are ordered by the `order` option, not by insertion, so a folder rebuilt during a swap keeps its slot: picker `-100`, folders `0`, buttons `100`.
+`<Tweaks />` must be **inside** the Canvas — `useParameters` reaches the Inspector through `useThree((s) => s.gl).inspector`, which is unset in production, so every folder no-ops there.
 
-## The two channels
+## Declaring is uniform. Reading decides renders.
 
-`useTweaks` just calls `onChange(values)` on every edit. What that callback does decides whether React runs at all — pick per field, not per folder.
+Every row looks the same, so there is nothing to decide when you add one:
 
-- **Store channel** — `onChange` is a zustand setter. Subscribers re-render. Use it only when a value changes the React tree: geometry that must be rebuilt, conditional rendering, anything feeding `useMemo`. `useFogTweaks` and `useTerrainTweaks` take this route.
-- **Direct channel** — `onChange` mutates three.js objects held in refs. Nothing re-renders; the next frame just draws differently. Use it for material properties, uniforms, transforms, and anything read inside `useFrame`. `CubeScene` does this for colour, wireframe and spin.
+```ts
+group.add(FOG, 'density', 0, 0.06, 0.0005).onChange(sync);
+```
 
-`CubeScene` mixes both in one folder: `size` goes to the store because the geometry rebuilds, everything else is a direct mutation. Note it calls `setCubeSize` unconditionally — zustand compares the selected value with `Object.is`, so passing an unchanged number wakes no subscriber.
+**What varies is how a component reads it**, because that is what decides whether React runs:
 
-Mutate through **refs**, not values returned from `useThree` — `react-hooks/immutability` rejects the latter.
+```tsx
+// re-renders — use when the value changes the React tree
+const shape = useTweakStore((s) => s.terrainShape);   // geometry gets rebuilt
 
-Top-level rows are ordered by the `order` option, not by insertion, so a folder rebuilt during a swap keeps its slot: picker `-100`, folders `0`, buttons `100`.
+// does not re-render — use when the value only lands on a three.js object
+useTweakEffect((s) => s.terrainLook, (look) => {
+  flat.set(look.color);
+  material.current.wireframe = look.wireframe;
+});
+```
 
-## Schema
+`useTweakEffect` subscribes to the store *outside* React, in a layout effect — `apply` runs on mount and on every change to that slice, and nothing renders. The next frame simply draws differently.
 
-`useTweaks` infers the control from `typeof <NAME>_DEFAULTS[key]`; the schema only adds what can't be inferred. Every field is optional, and a key with no entry still gets a control.
+The Inspector never renders anything by itself: `group.add(obj, 'key')` attaches a DOM input whose listener does `obj.key = value` and stops. Leva is the opposite — `useControls` returns values, so it *must* re-render.
 
-- `number` — `{ min, max, step }` for a slider, nothing for a plain number input
-- `boolean` / `string` — nothing needed
-- colors — `{ color: true }` (values stay `'#rrggbb'` strings)
-- dropdowns — `{ options: [...] | { label: value } }`
-- `{ label: 'nicer name' }` renames the row
-- `{ folder: 'Noise/Detail' }` nests the row; subfolders are created on first use, in key order
+### Which to use
 
-Folders start **closed**. Pass `{ open: true }` as the 5th arg to `useTweaks` to open the top-level one; subfolders always start closed.
+`useTweakStore` only when the value changes the React tree: geometry that is rebuilt, anything feeding a `useMemo`, conditional rendering. Today that is `cube.size`, `terrainShape` and `sceneId`.
 
-Buttons use `useTweakButton(label, onClick)` with a `useCallback`'d handler — see `hooks/inspector/useLogButton.ts`. They sit at the bottom of the tab outside any folder, so they stay visible while folders are collapsed.
+`useTweakEffect` for everything else — materials, colours, uniforms, light properties, transforms.
 
-Pass module-level `defaults`/`schema` and a stable `onChange`; the folder is rebuilt whenever those identities change.
+For values read every frame, skip both and read `useTweakStore.getState()` inside `useFrame` (`cube.spin`).
 
-# Scenes
+Select narrowly when you subscribe: `(s) => s.cube.size` re-renders only when the size changes, while `(s) => s.cube` would re-render on a colour drag too.
 
-`components/scenes/registry.ts` maps a `SceneId` to a label and a component. `<ActiveScene />` in `components/Scene.tsx` renders whichever one `useTweakStore((s) => s.sceneId)` names, and the **Scene** dropdown at the top of the Parameters tab switches it.
+### Slices
 
-A scene component calls its own tweak hooks, so its folders mount and unmount with it — that teardown is `useTweaks`' effect cleanup, nothing scene-specific. Folders that should survive a swap (fog) belong in `<Tweaks />` instead.
+One config per folder, except where a folder mixes cheap values with something expensive — `TERRAIN_SHAPE` and `TERRAIN_LOOK` are separate so recolouring can never re-key the geometry `useMemo`.
+
+## Saving
+
+Tune, hit `log configs`, right-click the logged object → *Copy object*, paste back into `configs/`. It dumps `CONFIGS`, and clones because devtools reads a logged object lazily.
+
+In production `build` never runs, nothing writes to a config, and the store keeps its initial copy.
+
+## Skip all of this for a throwaway scene
+
+The config/store layer exists so tweaks can be **saved** and **read from any component**. A one-off demo needs neither, and a row can bind straight to the object:
+
+```ts
+useParameters('Cube', (group) => {
+  group.addColor(material.current, 'color');   // done. mutates the live Color.
+  group.add(material.current, 'wireframe');
+});
+```
+
+No config file, no store slice, no `sync`, nothing re-renders. Reach for the full flow when a value has to survive a paste-back or be read somewhere else — not by default.
+
+## Rules
+
+- **Colours go through `colorRow(group, CONFIG, 'key', sync)`.** A colour row hands back a packed int no matter what you passed in; `colorRow` normalises to `'#rrggbb'` in the config first, which is what keeps a dump paste-ready.
+- **Construct once, then mutate.** `FOG_ARGS` is captured at import: if a re-render handed `<fogExp2>` different `args`, R3F would build a new instance, and replacing `scene.fog` rebuilds the fog node and recompiles every material. Lights carry no such hazard, so they are constructed bare and left to `useTweakEffect`.
+- **`build` runs once**, on mount, so no `useCallback` is needed. Pass the third argument, `key`, to rebuild a folder against a different object (e.g. a newly selected mesh). `useTweakEffect` follows the same convention.
+- **Prefer a disabling value to unmounting.** Fog has no `enabled` row because dragging density to 0 does it.
+- **Keep `SceneId` a type-only import** in the store. A value import closes a real require cycle: store → registry → scenes → tweak hooks → store.
+- Never pass a ref *into* a hook you write through — `react-hooks/immutability` treats a hook argument as a hook input and rejects it. Components own their refs and mutate them inside `useTweakEffect`.
+
+## What the addon gives you
+
+`add(object, property, ...)` picks the control from `typeof object[property]`:
+
+- `number` + `(min, max, step)` → slider; `number` alone → drag-input
+- `boolean` → checkbox, `string` → text, `function` → button
+- third arg as an object → dropdown, `['a','b']` or `{ Label: value }`
+- `addColor(object, property)` → colour picker
+- `addFolder(name)` → nested group, `.close()` collapses it
+- `.name('nicer label')` renames a row
+
+It has no ordering or removal API — `List` only appends and `Parameters` never drops a group — so `lib/inspector.ts` stamps an order on each root row and re-sorts on every build, which keeps the button below the folders however a swap rebuilds them. Two traps in the addon itself:
+
+- **`.listen()` never stops.** It rAF-polls the object to keep the row in sync, with no cancellation — safe on a folder that never unmounts, a leak on one that does.
+- **`addColor` mis-renders dark swatches.** `_getColorHex` builds the hex without `padStart`, so a colour below `0x100000` shows an invalid swatch. The stored value is still correct.
+
+`@types/three` types the API well but omits `ParametersGroup.close()`, `Item.parent`, `Item.userData` and `Inspector.parameters`, and types `renderer.inspector` as `InspectorBase` (which has no `createParameters`, so `getInspector` tests for the method). `lib/inspector.ts` holds every cast that results; don't spread them further.
+
+# Structure
+
+One component per file, named after the file. A scene owns a folder under `components/scenes/<name>/` holding **everything** for that scene — its components and its tweak hook.
+
+```
+components/     Scene · Tweaks · Atmosphere · Lights · ActiveScene · Controls
+  scenes/       registry.ts
+    terrain/    TerrainScene.tsx · useTerrainTweaks.ts
+    cube/       CubeScene.tsx · useCubeTweaks.ts
+configs/        one file per domain
+hooks/          useParameters.ts · useTweakEffect.ts
+  tweaks/       folders belonging to no single scene
+lib/            inspector · noise · terrain · webgpu
+stores/         tweakStore.ts
+```
+
+Shader authoring belongs in `lib/`, not in a component — `createTerrainShading` sits next to the geometry code it colours.
+
+`components/scenes/registry.ts` maps a `SceneId` to a label and a component. `<ActiveScene />` renders whichever one `useTweakStore((s) => s.sceneId)` names, and `useSceneTweaks` switches it — the one folder with no config behind it, because which scene is open is session state, not a saved look. Scenes are imported eagerly; at ten of them, switch to `React.lazy` and give `<ActiveScene />` a Suspense boundary.
+
+A scene calls its own tweak hook so the folder mounts and unmounts with it; global folders are called from `<Tweaks />`. Each hook is called exactly once — calling it twice would build the folder twice.
 
 ## Add a scene
 
-1. `components/scenes/<Name>Scene.tsx` — call `useTweaks` (or a `use<Name>Tweaks` hook), return the contents.
-2. `components/scenes/registry.ts` — add the entry; `SceneId` and the dropdown pick it up.
+1. `components/scenes/<name>/` — `<Name>Scene.tsx` plus `use<Name>Tweaks.ts`.
+2. `configs/<name>Config.ts`, and one line in `CONFIGS`.
+3. `components/scenes/registry.ts` — add the entry; `SceneId` and the dropdown pick it up.
 
-Per-object tweaks work the same way: give `useTweaks` a `defaults`/`onChange` pair derived from the selected object (`useMemo`/`useCallback` on it) and the folder rebuilds on every selection change. Transforms belong on the direct channel.
+## Add a folder (e.g. "sphere")
 
-## Add a new folder (e.g. "sphere")
-
-1. `configs/sphereConfig.ts` — a `SphereConfig` type and `SPHERE_DEFAULTS`.
-2. `stores/tweakStore.ts` — add `sphere: SphereConfig` + `setSphere`, initialised to `SPHERE_DEFAULTS`.
-3. `hooks/inspector/useSphereTweaks.ts` — copy `useFogTweaks`, swap in the sphere config and `setSphere`.
-4. `components/Tweaks.tsx` — call `useSphereTweaks()`.
-5. Consume it: `const { ... } = useTweakStore((s) => s.sphere)`.
+1. `configs/sphereConfig.ts` — `SphereConfig` and `export const SPHERE: SphereConfig = { ... }`.
+2. `stores/tweakStore.ts` — add `sphere: SPHERE` to `CONFIGS`. That is the whole store change.
+3. `use<Name>Tweaks.ts` — one row per knob, all `.onChange(sync)` where `sync = () => syncConfig('sphere')`.
+4. Call it once, then consume with `useTweakEffect` unless the value rebuilds something.

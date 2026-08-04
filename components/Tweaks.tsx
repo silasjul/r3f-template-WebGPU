@@ -1,14 +1,18 @@
-import { useSceneSelect } from '@/hooks/inspector/useSceneSelect';
-import { useFogTweaks } from '@/hooks/inspector/useFogTweaks';
-import { useLogButton } from '@/hooks/inspector/useLogButton';
+import { useSceneTweaks } from '@/hooks/tweaks/useSceneTweaks';
+import { useFogTweaks } from '@/hooks/tweaks/useFogTweaks';
+import { useLightTweaks } from '@/hooks/tweaks/useLightTweaks';
+import { useInspectorToggle } from '@/hooks/tweaks/useInspectorToggle';
+import { useLogButton } from '@/hooks/tweaks/useLogButton';
 
 /**
- * Lives inside the Canvas because the panel hangs off the renderer. Holds only the
- * controls that outlive a scene swap — per-scene folders belong to the scene itself.
+ * Every folder that outlives a scene swap. Consumers never come here — they read the
+ * store, from wherever they happen to live.
  */
 export default function Tweaks() {
-  useSceneSelect();
+  useSceneTweaks();
   useFogTweaks();
+  useLightTweaks();
+  useInspectorToggle();
   useLogButton();
 
   return null;

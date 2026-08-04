@@ -1,5 +1,5 @@
-/** The fields that actually define the height field — anything sampling the ground needs only these. */
-export type TerrainShape = {
+/** Split from the look because a change here rebuilds the geometry. */
+export type TerrainShapeConfig = {
   seed: number;
   scale: number;
   height: number;
@@ -7,17 +7,17 @@ export type TerrainShape = {
   lacunarity: number;
   persistence: number;
   warp: number;
-};
-
-export type TerrainConfig = TerrainShape & {
   size: number;
   segments: number;
+};
+
+export type TerrainLookConfig = {
   color: string;
   slopeColor: string;
   wireframe: boolean;
 };
 
-export const TERRAIN_DEFAULTS: TerrainConfig = {
+export const TERRAIN_SHAPE: TerrainShapeConfig = {
   seed: 5704,
   scale: 90,
   height: 6.5,
@@ -27,6 +27,9 @@ export const TERRAIN_DEFAULTS: TerrainConfig = {
   warp: 0,
   size: 250,
   segments: 80,
+};
+
+export const TERRAIN_LOOK: TerrainLookConfig = {
   color: '#b09863',
   slopeColor: '#6b5637',
   wireframe: false,

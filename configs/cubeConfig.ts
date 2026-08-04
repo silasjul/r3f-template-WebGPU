@@ -5,7 +5,7 @@ export type CubeConfig = {
   wireframe: boolean;
 };
 
-export const CUBE_DEFAULTS: CubeConfig = {
+export const CUBE: CubeConfig = {
   color: '#c98f5a',
   size: 12,
   spin: 0.3,

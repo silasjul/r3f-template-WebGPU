@@ -1,8 +1,8 @@
 import type { ComponentType } from 'react';
-import TerrainScene from '@/components/scenes/TerrainScene';
-import CubeScene from '@/components/scenes/CubeScene';
+import TerrainScene from '@/components/scenes/terrain/TerrainScene';
+import CubeScene from '@/components/scenes/cube/CubeScene';
 
-/** Each entry owns its own tweak folders — they mount and unmount with the scene. */
+/** Each entry owns its own folder — they mount and unmount with the scene. */
 export const SCENES = {
   terrain: { label: 'Terrain', Component: TerrainScene },
   cube: { label: 'Cube', Component: CubeScene },
