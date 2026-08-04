@@ -1,13 +1,13 @@
 export type CubeConfig = {
   color: string;
-  rotationSpeed: number;
-  scale: number;
+  size: number;
+  spin: number;
   wireframe: boolean;
 };
 
 export const CUBE_DEFAULTS: CubeConfig = {
-  color: 'royalblue',
-  rotationSpeed: 0.5,
-  scale: 1,
+  color: '#c98f5a',
+  size: 12,
+  spin: 0.3,
   wireframe: false,
 };
