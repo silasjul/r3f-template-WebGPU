@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { extend, type ThreeToJSXElements } from '@react-three/fiber';
+import { setInspector } from './addon';
 
 declare module '@react-three/fiber' {
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -36,6 +37,7 @@ export async function createWebGPURenderer(props: GLDefaults) {
     }
 
     renderer.inspector = inspector;
+    setInspector(inspector);
   }
 
   await renderer.init();

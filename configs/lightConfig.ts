@@ -13,7 +13,7 @@ export type LightConfig = {
   fill: number;
 };
 
-export const LIGHT: LightConfig = {
+export const LIGHT_DEFAULTS: LightConfig = {
   color: '#ffd9a0',
   intensity: 2.4,
   height: 24,

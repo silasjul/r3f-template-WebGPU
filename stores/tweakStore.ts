@@ -1,21 +1,22 @@
 import { create } from 'zustand';
-import { CUBE, type CubeConfig } from '@/configs/cubeConfig';
-import { LIGHT, type LightConfig } from '@/configs/lightConfig';
+import { CUBE_DEFAULTS, type CubeConfig } from '@/configs/cubeConfig';
+import { LIGHT_DEFAULTS, type LightConfig } from '@/configs/lightConfig';
 
 /**
- * React's view of `configs/`. The Inspector writes into a config, the folder's `sync`
- * copies it here, and any component reads it with `useTweakStore((s) => s.cube)`.
+ * React's view of the panel. A tweak hook mirrors what `useControls` returned into here, and any
+ * component reads it with `useTweakStore((s) => s.cube)` — so the Canvas can re-render freely
+ * without the panel ever seeing it.
  */
 interface TweakState {
   cube: CubeConfig;
-  syncCube: () => void;
+  setCube: (cube: CubeConfig) => void;
   light: LightConfig;
-  syncLight: () => void;
+  setLight: (light: LightConfig) => void;
 }
 
 export const useTweakStore = create<TweakState>((set) => ({
-  cube: { ...CUBE },
-  syncCube: () => set({ cube: { ...CUBE } }),
-  light: { ...LIGHT },
-  syncLight: () => set({ light: { ...LIGHT } }),
+  cube: CUBE_DEFAULTS,
+  setCube: (cube) => set({ cube }),
+  light: LIGHT_DEFAULTS,
+  setLight: (light) => set({ light }),
 }));

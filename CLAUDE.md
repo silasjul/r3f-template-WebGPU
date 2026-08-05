@@ -9,19 +9,6 @@ When you finish a feature, verify it with **only** these two checks, and only if
 
 Never run `npm run build` or start the dev server. Ask the user to check for you.
 
-# How I like things done
-
-Settled preferences, not suggestions.
-
-- **Explicit beats clever.** Two obvious lines beat one generic line. Readable repetition beats wiring you have to go find — `.onChange(sync)` on every row is boring to type and impossible to misread.
-- **Names say what a thing is, not what it's like.** A hemisphere light's colours are `upColor`/`downColor`, not `sun`/`sky`.
-- **One component per file**, named after the file.
-- **No barrel files.** Import from the real path.
-- **Co-locate.** Everything for one concept in one place, never split across two directory trees.
-- **Delete unused API.** No "might need it later" parameters.
-- **Don't optimise the dev panel.** A re-render while dragging a slider re-applies props to objects that already exist. Route everything through the store and stop thinking about it.
-- **Verify against source, don't guess.** The Inspector is newer than your training data — read `node_modules/three/examples/jsm/inspector/` before claiming what its API does.
-
 # Animation & styling
 
 - **Animation** — prefer GSAP over Framer Motion, CSS animations, or hand-rolled `useFrame` tweens. Per-frame 3D logic in `useFrame` is still fine.
@@ -39,37 +26,45 @@ Worth a comment: a workaround for someone else's bug, a non-obvious ordering con
 app/            Next routes
 components/     one component each
 configs/        one plain object per domain
-hooks/          useParameters.ts
-  tweaks/       one hook per panel folder
-lib/            inspector · webgpu — no React in here
+hooks/          one hook per panel folder
+inspector/      the tweak engine — vendored, don't edit
 stores/         tweakStore.ts
 ```
 
-- `lib/` is framework-free: DOM, three.js, maths. Geometry and shader authoring belongs here, never in a component.
+- `inspector/` is off-limits. It has its own `AGENTS.md`; adding a tweak never means touching it.
+- `lib/` doesn't exist yet. Create it for framework-free code — DOM, three.js, maths. Geometry and shader authoring belongs there, never in a component.
 - A component reads what it needs from the store and renders, short enough to take in at a glance.
 
-# Inspector tweaks
+# Tweaks
 
-Tweaks live in the **Parameters** tab of three.js's built-in WebGPU Inspector (attached in `lib/webgpu.ts`, dev-only) — no Leva. Press **`h`** to collapse and reopen the panel.
+Tweaks are written with **`useControls`** — Leva's API, reimplemented over the **Parameters** tab of three.js's built-in WebGPU Inspector (attached in `inspector/renderer.ts`, dev-only). Leva itself is not a dependency, but a tweak hook copied from a Leva project should work unchanged. Press **`h`** to collapse and reopen the panel.
 
-Flow: **`config → hook → store → consumer`**. To add a folder, e.g. "sphere":
+Flow: **`config → hook → InspectorControls → store → consumer`**. To add a folder, e.g. "sphere":
 
-1. `configs/sphereConfig.ts` — a `SphereConfig` type and `export const SPHERE: SphereConfig = { ... }`. Defaults on disk, live values at runtime.
-2. `stores/tweakStore.ts` — `sphere: { ...SPHERE }` and `syncSphere`, two lines.
-3. `hooks/tweaks/useSphereTweaks.ts` — `const sync = useTweakStore((s) => s.syncSphere)`, then one row per knob:
+1. `configs/sphereConfig.ts` — a `SphereConfig` type and `export const SPHERE_DEFAULTS: SphereConfig = { ... }`.
+2. `stores/tweakStore.ts` — `sphere: SPHERE_DEFAULTS` and `setSphere`, two lines.
+3. `hooks/useSphereTweaks.ts` — one `useControls` call, then mirror what it returned into the store:
    ```ts
-   group.add(SPHERE, 'size', 1, 40, 0.5).onChange(sync);
+   const setConfig = useTweakStore((s) => s.setSphere);
+
+   const { size } = useControls('Sphere', {
+     size: { value: SPHERE_DEFAULTS.size, min: 1, max: 40, step: 0.5 },
+   });
+
+   useEffect(() => {
+     setConfig({ size });
+   }, [setConfig, size]);
    ```
 4. `components/InspectorControls.tsx` — call the hook. The single registration point.
 5. Read it anywhere: `const { size } = useTweakStore((s) => s.sphere)`.
 
-The Inspector is plain DOM with no knowledge of React: `group.add(obj, 'key')` attaches an input whose listener does `obj.key = value` and stops. `.onChange(sync)` is the only thing that carries a change into React.
+`useControls` reaches the Inspector through a module singleton, not through R3F — so it works in **any** component, inside or outside the Canvas. `<InspectorControls />` sits beside `<Scene />` in `app/page.tsx` so a Canvas re-render never touches the panel. Call each hook exactly once; twice builds the folder twice. If a folder should mount and unmount with something (a swappable scene, a selected object), call its hook from that component instead — a folder's lifetime follows its caller.
 
-`<InspectorControls />` must be **inside** the Canvas — `useParameters` reaches the Inspector through `useThree((s) => s.gl).inspector`, which is unset in production, so every folder no-ops there. Call each hook exactly once; twice builds the folder twice. If a folder should mount and unmount with something (a swappable scene, a selected object), call its hook from that component instead — a folder's lifetime follows its caller.
+In production no Inspector is ever attached, so `useControls` returns the schema's own values and never renders anything.
 
 ## Throwaway scenes
 
-The config/store layer buys **saving** and **reading a tweak from any component**. A one-off demo needs neither, and a row can bind straight to the object:
+The config/store layer buys **saving** and **reading a tweak from any component**. A one-off demo needs neither, and `useParameters` lets a row bind straight to a live object — the one thing `useControls` can't do, because it owns its own value map:
 
 ```ts
 useParameters('Cube', (group) => {
@@ -82,7 +77,7 @@ Reach for the full flow when a value has to survive a paste-back or be read else
 
 ## Saving
 
-Tune, hit `log configs`, right-click the logged object → *Copy object*, paste back into `configs/`. It dumps the store minus its `sync` functions. In production nothing writes to a config and the store keeps its initial copy.
+Tune, hit `log configs`, right-click the logged object → *Copy object*, paste back into `configs/`. It dumps the store minus its setters. Colours come back as `'#rrggbb'` whatever you wrote in the schema, so a dump is always pasteable.
 
 ## The one real cost: `args` vs props
 
@@ -96,35 +91,29 @@ So the only thing to think about is when a render **reconstructs** something:
 - if a folder mixes cheap values with something expensive, split it into two configs so the cheap rows can't invalidate the expensive memo
 - for something read every frame, `useTweakStore.getState()` inside `useFrame` skips the subscription — but only bother if the component is genuinely expensive
 
-# The addon
+# The schema
 
-`add(object, property, ...)` picks the control from `typeof object[property]`:
+Four call shapes, all Leva's: `useControls(schema)`, `useControls(schema, settings)`, `useControls(name, schema)`, `useControls(name, schema, settings)`. Any of them takes a trailing `deps` array, which is the only thing that rebuilds a folder. `settings` is `{ collapsed?, order? }`.
 
-- `number` + `(min, max, step)` → slider; `number` alone → drag-input
-- `boolean` → checkbox, `string` → text, `function` → button
-- third arg as an object → dropdown, `['a','b']` or `{ Label: value }`
-- `addColor(object, property)` → colour picker
-- `addFolder(name)` → nested group, `.close()` collapses it
-- `.name('nicer label')` renames a row
+A schema value is either the value itself or a `{ value, ... }` spec. The widget follows from it:
 
-Colours go through `colorRow` instead of `group.add` — a colour editor reports a packed int whatever you passed in, and `colorRow` normalises it back to `'#rrggbb'` so a dump stays pasteable.
+| you write | you get |
+| --- | --- |
+| `4` | drag-input |
+| `{ value: 4, min: 0, max: 10, step: 1 }` | slider |
+| `true` | checkbox |
+| `'#c98f5a'`, `'royalblue'` | colour picker — any string CSS can parse as a colour |
+| `'hello'` | text |
+| `{ options: ['a', 'b'] }` or `{ options: { Label: value } }` | dropdown |
+| `{ x: 0, y: 0 }`, `{ x: 0, y: 0, z: 0 }`, `[0, 0]`, `[0, 0, 0]` | one row of numbers side by side |
+| `{ value: [1, 5], min: 0, max: 10 }` | interval — two numbers that push rather than cross |
+| `button(() => …)` | full-width button, the key is the label |
+| `folder({ … }, { collapsed: true })` | nested folder; its values **flatten** into the returned object |
 
-## Traps, verified against source
+Any spec also takes `label`, `hint`, `disabled`, `order`, `onChange`, `transient`, and `render: (get) => boolean`. Leva's transient rule holds: an input with `onChange` is left out of the returned object unless you also pass `transient: false`. `render`'s `get` only sees keys from the same `useControls` call — there are no cross-call paths.
 
-- **`.listen()` never stops.** It rAF-polls the object with no cancellation — safe on a folder that never unmounts, a leak on one that does.
-- **`addColor` mis-renders dark swatches.** `_getColorHex` skips `padStart`, so a colour below `0x100000` shows an invalid swatch. The stored value is still correct.
-- **`Inspector.show()` throws**, and `Tab.hide()` hides the tab's toolbar icon along with it, leaving nothing to click. To collapse a panel the way its icon does, click the icon.
-- **Building a folder forces the panel open**, and that isn't persisted — the only way to start collapsed is to close it after the folders exist, which is why `useParametersToggle` is called last.
+`onChange` gets no contextual type from the schema, so annotate it: `onChange: (value: number) => …`.
 
-`lib/inspector.ts` holds every cast needed for the parts `@types/three` omits, plus the ordering workaround that keeps the save button below the folders. Don't spread those casts further.
+Not built, because the Inspector has no widget for them: image, joystick pad, `optional`, `buttonGroup`, `monitor`.
 
-# Rejected on purpose
-
-Each was built, used, and removed. Don't reintroduce without a concrete reason.
-
-- `useTweakEffect` — a store subscription outside React, optimising a cost a dev panel doesn't have.
-- Configs split by channel (`CUBE` vs `CUBE_LIVE`). Same reason.
-- A generated store (`CONFIGS` registry, `syncConfig<K>`). Saved one line per domain, cost readability.
-- Row files (`cubeRows.ts`) — scattered the tweaks and made values unreadable elsewhere.
-- Auto-syncing rows by walking `group.objects` — hides the wiring.
-- A schema/defaults wrapper over the addon — that's rebuilding Leva on an API that already binds to live objects.
+How any of it works, and the upstream bugs it steers around, is in `inspector/AGENTS.md`. You shouldn't need it to write a tweak.
