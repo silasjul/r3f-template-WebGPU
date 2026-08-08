@@ -1,10 +1,11 @@
 import Scene from '@/components/Scene'
-import InspectorControls from '@/components/InspectorControls'
+import { useParametersToggle } from "tsl-inspector"
 
 export default function Home() {
+  useParametersToggle()
+
   return (
     <main className="w-full h-lvh">
-      <InspectorControls />
       <Scene />
     </main>
   )
