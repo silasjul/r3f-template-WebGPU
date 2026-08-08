@@ -2,12 +2,6 @@ import { mix, sin, time, uv } from "three/tsl";
 import { controls } from "tsl-inspector";
 import { PATTERN_DEFAULTS } from "@/configs/cubeScene";
 
-/**
- * `controls` is `useControls` with no React — every row comes back as a TSL uniform, so the panel
- * writes `node.value` and the next frame differs. No re-render, no recompile, no store.
- *
- * The path puts these rows inside the `Cube` folder that `Cube.tsx` builds, whichever runs first.
- */
 const { colorA, colorB, scale, speed } = controls("Cube/Pattern", {
   colorA: PATTERN_DEFAULTS.colorA,
   colorB: PATTERN_DEFAULTS.colorB,

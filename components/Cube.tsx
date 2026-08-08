@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { useControls } from "tsl-inspector";
 import type { Mesh } from "three/webgpu";
 import { CUBE_DEFAULTS } from "@/configs/cubeScene";
-import { cubeColorNode } from "@/lib/shaders/cubePattern";
+import { cubeColorNode } from "@/lib/cubePattern";
 
 export default function Cube() {
   const mesh = useRef<Mesh>(null!);
