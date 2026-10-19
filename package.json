@@ -10,26 +10,26 @@
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
-    "@react-three/drei": "^10.7.7",
-    "@react-three/fiber": "^9.6.1",
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
     "gsap": "^3.15.0",
-    "lucide-react": "^1.23.0",
-    "next": "16.2.7",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "three": "^0.184.0",
+    "lucide-react": "^1.59.0",
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "three": "^0.186.1",
     "tsl-inspector": "github:silasjul/inspector",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/three": "^0.184.1",
+    "@types/three": "^0.186.0",
     "eslint": "^9",
-    "eslint-config-next": "16.2.7",
+    "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "~6.0.3"
   }
 }
